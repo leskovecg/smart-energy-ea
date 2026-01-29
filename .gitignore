@@ -1,8 +1,10 @@
 # python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 .env
+venv-smart-energy/
 
 # notebooks & outputs
 .ipynb_checkpoints/
@@ -12,6 +14,12 @@ __pycache__/
 # logs
 logs/
 
+# Models (generated)
+models/   
+
+# ignore tmp 
+tmp/
+
 # ignore experimental figure versions
 figures/v[1-8]/
 
@@ -19,9 +27,5 @@ figures/v[1-8]/
 tables/v[1-9]/
 tables/v1[0-1]/
 
-# reports and old stuff
-reports/
-old/
-**/old/
-docs/
+# other
 TODO

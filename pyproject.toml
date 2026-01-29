@@ -1,0 +1,8 @@
+[project]
+name = "smart-energy-ea"
+version = "0.1.0"
+description = "Active Learning for Power Grid Security Assessment"
+requires-python = ">=3.9"
+
+[tool.black]
+line-length = 100
