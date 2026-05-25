@@ -1,0 +1,100 @@
+# Smart Energy Pilot – Architecture Sketch (HITL + MinIO + Retraining API)
+
+This is a short, text-based sketch of the Smart Energy pilot integration.
+Goal: enable HITL (Human-in-the-Loop) data augmentation via dashboard and trigger model retraining via API.
+
+Legend:
+- HITL: Human-in-the-Loop (system operator provides feedback/labels)
+- Atena: internal server where the retraining API is deployed
+- MinIO: object storage used for datasets, models, and metrics artifacts
+
+--------------------------------------------------------------------------------
+
+[1] HUMAN / OPERATOR (HITL)
+    - Views model predictions + confidence on the dashboard
+    - Selects low-confidence (uncertain) samples for labeling/confirmation
+    - Action: clicks "Append / Save" -> updates dataset
+    - Action: clicks "Retrain" -> triggers retraining API call
+
+        |
+        | (labels / feedback / retrain trigger)
+        v
+
+[2] HUMAIne DASHBOARD (Ubitech)
+    Responsibilities:
+    - Runs inference and shows predictions + uncertainty
+    - Implements active-learning strategy selection for sample picking
+      (e.g., uncertainty / entropy / margin / random)
+    - When operator selects samples, dashboard produces an UPDATED DATASET SNAPSHOT
+      and uploads it to MinIO under a fixed key:
+
+        smart-energy-results/al_training_dataset/simulation_security_labels_n-1_latest.csv
+
+      NOTE: *_latest.csv is planned to always be the FULL dataset snapshot.
+
+    - When operator clicks "Retrain", dashboard calls retraining API (hosted on Atena):
+
+        POST http://<ATENA_HOST>:8000/retrain
+        Headers: X-API-Key: <shared_secret>
+        Body: baseline_key + latest_key (minimal)
+
+        |
+        | (POST /retrain)
+        v
+
+[3] RETRAINING API (FastAPI) – hosted on Atena (IJS side)
+    Endpoints:
+    - GET  /health   -> health check
+    - POST /retrain  -> retrain pipeline
+
+    Retraining flow (POST /retrain):
+    1) Download baseline dataset from MinIO (reference)
+       - baseline_key: al_training_dataset/simulation_security_labels_n-1_YYYYMMDD....csv
+
+    2) Download latest dataset snapshot from MinIO (dashboard output)
+       - latest_key:   al_training_dataset/simulation_security_labels_n-1_latest.csv
+
+    3) Train model
+       - Uses snapshot-first logic:
+         if latest_rows >= baseline_rows -> train on LATEST only (snapshot mode)
+         else -> fallback merge (delta mode)
+       - Drops metadata columns from latest (e.g., created_at)
+
+    4) Upload artifacts to MinIO under a versioned run_id
+       - model artifact:   <output_prefix>/<run_id>/model.joblib
+       - metrics artifact: <output_prefix>/<run_id>/metrics.json
+       Metrics include:
+       - accuracy, f1_macro, confusion_matrix
+       - dataset_mode (snapshot/delta)
+       - n_rows_baseline, n_rows_latest, n_rows_all
+       - n_features, training params
+
+        |
+        | (upload model + metrics)
+        v
+
+[4] MINIO OBJECT STORAGE (HumAIne)
+    Buckets/paths (typical):
+    - smart-energy-results/
+        - al_training_dataset/
+            - simulation_security_labels_n-1_latest.csv      (FULL snapshot, overwritten each time)
+            - simulation_security_labels_n-1_20260120T...csv (baseline reference)
+        - models/
+            - retraining_runs/
+                - <run_id>/
+                    - model.joblib
+                    - metrics.json
+
+--------------------------------------------------------------------------------
+
+Summary (who does what)
+- Dashboard side (Ubitech): HITL UI, uncertainty sampling strategy, dataset snapshot creation, retrain button
+- Our side (IJS): Retraining API, model training, artifact versioning, uploads to MinIO
+- Storage (HumAIne): MinIO is the integration point for datasets + models + metrics
+
+Operational notes
+- Atena is used for initial deployment; later migration to HumAIne platform is expected.
+- API is protected by X-API-Key for remote calls from the dashboard.
+- The API is stateless: everything persistent is stored in MinIO.
+
+--------------------------------------------------------------------------------

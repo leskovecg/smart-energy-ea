@@ -1,0 +1,25 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Env / secrets
+.env
+
+# Local data & artifacts
+data/
+models/
+logs/
+tmp/
+notebooks/
+docs/
+figures/
+powershell/
+reports/
+src/
+tables/
+
+# Virtual envs
+venv*/
+.venv*/

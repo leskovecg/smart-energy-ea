@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  retraining-api:
+    build: .
+    container_name: retraining-api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
